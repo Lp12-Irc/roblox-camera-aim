@@ -176,7 +176,7 @@ local function updateESP()
                 h.OutlineColor = Color3.fromRGB(255, 245, 200)
                 h.FillTransparency = 0.65
                 h.OutlineTransparency = 0
-                h.Parent = gui
+                h.Parent = workspace
                 highlights[other] = h
             end
             h.Adornee = character
