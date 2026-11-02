@@ -24,7 +24,7 @@ local function status(text)
 end
 status("Lua executado. Preparando download...")
 task.wait()
-local url = "https://raw.githubusercontent.com/Lp12-Irc/roblox-camera-aim/734ba50432ddc081f3171a2e9745dd1a3d1687e2/aim.lua"
+local url = "https://raw.githubusercontent.com/Lp12-Irc/roblox-camera-aim/2d195391cd45d20838c39d2dd5aab369f8e23c34/aim.lua"
 local ok, source = pcall(function() return game:HttpGet(url) end)
 if not ok or type(source) ~= "string" or #source == 0 then
     local firstError = tostring(source)
@@ -60,5 +60,5 @@ if not executed then
     status("FALHA NA EXECUCAO: " .. tostring(runError))
     return
 end
-status("Script iniciado. Consulte o painel CameraAim v2. F6 alterna; End remove.")
+status("Script iniciado. Consulte o painel CameraAim v3. F6 alterna; End remove.")
 task.delay(8, function() gui:Destroy() end)
