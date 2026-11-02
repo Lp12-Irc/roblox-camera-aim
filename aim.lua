@@ -1,4 +1,4 @@
--- CameraAim v3: camera aim and player highlights.
+-- CameraAim v4: camera aim and player highlights.
 -- Requires standard Player.Character models. Camera alignment does not control weapon spread.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12,7 +12,7 @@ local cleanupKey, binding = "__CameraAimCleanup", "__CameraAim"
 if type(_G[cleanupKey]) == "function" then pcall(_G[cleanupKey]) end
 local previous = parent:FindFirstChild("CameraAimStatus")
 if previous then previous:Destroy() end
-local config = {Strength = 70, Radius = 220, Enabled = false, ESP = false, Teams = true}
+local config = {Strength = 70, Radius = 220, ShowFOV = true, ESP = false, Teams = true}
 local connections, highlights = {}, {}
 local stopped, target = false, nil
 local function connect(signal, callback)
@@ -29,6 +29,7 @@ local frame = Instance.new("Frame")
 frame.Size = UDim2.fromOffset(350, 340)
 frame.Position = UDim2.fromOffset(20, 100)
 frame.BackgroundColor3 = Color3.fromRGB(22, 25, 34)
+frame.ZIndex = 5
 frame.Parent = gui
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 local function text(class, value, y, h)
@@ -40,11 +41,12 @@ local function text(class, value, y, h)
     o.Font = Enum.Font.Gotham
     o.TextSize = 14
     o.TextColor3 = Color3.fromRGB(235, 239, 248)
+    o.ZIndex = 6
     o.Parent = frame
     return o
 end
-local title = text("TextLabel", "CAMERA AIM v3  |  CABECA", 10, 30)
-local hint = text("TextLabel", "F6: alternar mira | End: remover", 40, 22)
+local title = text("TextLabel", "CAMERA AIM v4  |  CABECA", 10, 30)
+local hint = text("TextLabel", "Segure botao direito para mirar | End: remover", 40, 22)
 hint.TextSize = 12
 local function button(caption, y, callback)
     local b = text("TextButton", caption, y, 30)
@@ -54,12 +56,26 @@ local function button(caption, y, callback)
     connect(b.Activated, callback)
     return b
 end
-local enabledButton, espButton, teamButton
-enabledButton = button("Mira fixa: DESLIGADA", 70, function()
-    config.Enabled = not config.Enabled
-    enabledButton.Text = "Mira fixa: " .. (config.Enabled and "LIGADA" or "DESLIGADA")
-    target = nil
+local fovButton, espButton, teamButton
+fovButton = button("Circulo FOV: VISIVEL", 70, function()
+    config.ShowFOV = not config.ShowFOV
+    fovButton.Text = "Circulo FOV: " .. (config.ShowFOV and "VISIVEL" or "OCULTO")
 end)
+local circle = Instance.new("Frame")
+circle.Name = "FOVCircle"
+circle.AnchorPoint = Vector2.new(0.5, 0.5)
+circle.BackgroundTransparency = 1
+circle.BorderSizePixel = 0
+circle.ZIndex = 1
+circle.Active = false
+circle.Parent = gui
+Instance.new("UICorner", circle).CornerRadius = UDim.new(0.5, 0)
+local outline = Instance.new("UIStroke")
+outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+outline.Color = Color3.fromRGB(120, 195, 255)
+outline.Thickness = 1.5
+outline.Transparency = 0.15
+outline.Parent = circle
 local draggingSlider
 local function slider(label, y, min, max, value, apply)
     local caption = text("TextLabel", "", y, 22)
@@ -72,6 +88,7 @@ local function slider(label, y, min, max, value, apply)
     fill.BackgroundColor3 = Color3.fromRGB(90, 170, 255)
     fill.BorderSizePixel = 0
     fill.Size = UDim2.new(0, 0, 1, 0)
+    fill.ZIndex = 7
     fill.Parent = bar
     local function set(v)
         v = math.clamp(math.floor(v + 0.5), min, max)
@@ -102,7 +119,7 @@ teamButton = button("Ignorar mesma equipe: SIM", 250, function()
     teamButton.Text = "Ignorar mesma equipe: " .. (config.Teams and "SIM" or "NAO")
     target = nil
 end)
-local status = text("TextLabel", "Carregado. Segure botao direito ou use F6.", 287, 44)
+local status = text("TextLabel", "Carregado. Mira somente ao segurar botao direito.", 287, 44)
 status.TextWrapped = true
 status.TextSize = 12
 gui.Parent = parent
@@ -147,7 +164,7 @@ local function choose(camera)
     local cursor = cursorPosition(camera)
     -- Retain the selected head while valid to avoid switching between nearby players.
     if target then
-        local head = candidate(target, camera, cursor, config.Radius * 1.15)
+        local head = candidate(target, camera, cursor, config.Radius)
         if head then return head end
     end
     target = nil
@@ -198,13 +215,11 @@ end
 _G[cleanupKey] = cleanup
 connect(UIS.InputBegan, function(input, processed)
     if processed then return end
-    if input.KeyCode == Enum.KeyCode.End then cleanup()
-    elseif input.KeyCode == Enum.KeyCode.F6 then
-        config.Enabled = not config.Enabled
-        enabledButton.Text = "Mira fixa: " .. (config.Enabled and "LIGADA" or "DESLIGADA")
-        target = nil
-    end
+    if input.KeyCode == Enum.KeyCode.End then cleanup() end
 end)
+local focused = true
+connect(UIS.WindowFocusReleased, function() focused = false; target = nil end)
+connect(UIS.WindowFocused, function() focused = true end)
 local elapsed = 0
 RunService:BindToRenderStep(binding, Enum.RenderPriority.Camera.Value + 1, function(dt)
     if stopped then return end
@@ -212,8 +227,12 @@ RunService:BindToRenderStep(binding, Enum.RenderPriority.Camera.Value + 1, funct
         local camera = workspace.CurrentCamera
         if not camera then return end
         params.FilterDescendantsInstances = player.Character and {player.Character} or {}
-        local active = not UIS:GetFocusedTextBox() and not draggingSlider
-            and (config.Enabled or UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2))
+        local center = cursorPosition(camera)
+        circle.Position = UDim2.fromOffset(center.X, center.Y)
+        circle.Size = UDim2.fromOffset(config.Radius * 2, config.Radius * 2)
+        circle.Visible = config.ShowFOV
+        local active = focused and not UIS:GetFocusedTextBox() and not draggingSlider
+            and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
         local head
         if active then head = choose(camera) else target = nil end
         if head then
@@ -236,4 +255,4 @@ RunService:BindToRenderStep(binding, Enum.RenderPriority.Camera.Value + 1, funct
     end)
     if not ok then status.Text = "ERRO: " .. tostring(err) end
 end)
-print("[CameraAim v3] Painel carregado.")
+print("[CameraAim v4] Painel carregado.")
